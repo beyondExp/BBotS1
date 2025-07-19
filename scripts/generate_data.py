@@ -232,7 +232,7 @@ class SyntheticDataGenerator:
         if domain == "mathematics":
             available_tools = [tool for tool in BUILTIN_TOOLS if tool.tool_type == ToolType.MATHEMATICS]
         else:
-            available_tools = BUILTIN_TOOLS[:3]  # Use first 3 tools
+            available_tools = BUILTIN_TOOLS  # Use all available tools
         
         if domain == "mathematics":
             context = "You need to solve a complex mathematical problem involving multiple calculations."

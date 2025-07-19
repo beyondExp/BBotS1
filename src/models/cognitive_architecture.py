@@ -10,6 +10,7 @@ import math
 from typing import Optional, Tuple, Union, List, Dict, Any
 from transformers import PreTrainedModel, PretrainedConfig
 from transformers.modeling_outputs import CausalLMOutputWithPast
+from transformers.generation.utils import GenerationMixin
 from transformers.models.llama.modeling_llama import (
     LlamaAttention, 
     LlamaMLP,
@@ -62,6 +63,10 @@ class CognitiveConfig(PretrainedConfig):
         rope_theta=10000.0,
         rope_scaling=None,
         
+        # Required for LlamaAttention compatibility
+        attention_dropout=0.0,
+        pretraining_tp=1,
+        
         **kwargs,
     ):
         self.vocab_size = vocab_size
@@ -95,6 +100,10 @@ class CognitiveConfig(PretrainedConfig):
         self.use_cache = use_cache
         self.rope_theta = rope_theta
         self.rope_scaling = rope_scaling
+        
+        # Required for LlamaAttention compatibility
+        self.attention_dropout = attention_dropout
+        self.pretraining_tp = pretraining_tp
         
         super().__init__(
             pad_token_id=pad_token_id,
@@ -592,7 +601,7 @@ class CognitiveTransformerLayer(nn.Module):
         return outputs
 
 
-class CognitiveLanguageModel(PreTrainedModel):
+class CognitiveLanguageModel(PreTrainedModel, GenerationMixin):
     """Complete cognitive language model with tool calling capabilities"""
     
     config_class = CognitiveConfig

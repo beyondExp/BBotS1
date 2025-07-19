@@ -517,6 +517,22 @@ BUILTIN_TOOLS = [
         examples=[
             {"input": {"code": "print('Hello, World!')"}, "output": {"stdout": "Hello, World!\n", "stderr": "", "success": True}}
         ]
+    ),
+    ToolDefinition(
+        name="text_analyze",
+        tool_type=ToolType.TEXT_ANALYSIS,
+        description="Analyze text content for various properties",
+        parameters=[
+            ToolParameter("text", "string", "Text to analyze", True),
+            ToolParameter("analysis_type", "string", "Type of analysis to perform", False, "summary", 
+                        constraints={"enum": ["summary", "sentiment", "keywords", "readability"]})
+        ],
+        return_type="object",
+        return_description="Analysis results including metrics and insights",
+        examples=[
+            {"input": {"text": "Hello world!", "analysis_type": "summary"}, 
+             "output": {"word_count": 2, "character_count": 12, "sentence_count": 1}}
+        ]
     )
 ]
 
