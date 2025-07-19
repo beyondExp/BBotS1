@@ -66,6 +66,9 @@ class CognitiveConfig(PretrainedConfig):
         attention_dropout=0.0,
         attention_bias=False,
         
+        # Missing LlamaMLP required attributes
+        mlp_bias=False,
+        
         **kwargs,
     ):
         self.vocab_size = vocab_size
@@ -103,6 +106,9 @@ class CognitiveConfig(PretrainedConfig):
         # LlamaAttention required attributes
         self.attention_dropout = attention_dropout
         self.attention_bias = attention_bias
+        
+        # LlamaMLP required attributes
+        self.mlp_bias = mlp_bias
         
         super().__init__(
             pad_token_id=pad_token_id,
