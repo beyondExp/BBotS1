@@ -10,10 +10,12 @@ import math
 from typing import Optional, Tuple, Union, List, Dict, Any
 from transformers import PreTrainedModel, PretrainedConfig, GenerationMixin
 from transformers.modeling_outputs import CausalLMOutputWithPast
+from transformers.cache_utils import Cache, DynamicCache
 from transformers.models.llama.modeling_llama import (
     LlamaAttention, 
     LlamaMLP,
     LlamaRMSNorm,
+    LlamaRotaryEmbedding,
     rotate_half,
     apply_rotary_pos_emb
 )
@@ -31,7 +33,7 @@ class CognitiveConfig(PretrainedConfig):
         intermediate_size=5632,
         num_hidden_layers=24,
         num_attention_heads=16,
-        num_key_value_heads=8,
+        num_key_value_heads=None,
         max_position_embeddings=4096,
         
         # Cognitive module settings
@@ -76,7 +78,7 @@ class CognitiveConfig(PretrainedConfig):
         self.intermediate_size = intermediate_size
         self.num_hidden_layers = num_hidden_layers
         self.num_attention_heads = num_attention_heads
-        self.num_key_value_heads = num_key_value_heads
+        self.num_key_value_heads = num_key_value_heads if num_key_value_heads is not None else num_attention_heads
         self.max_position_embeddings = max_position_embeddings
         
         # Cognitive settings
@@ -521,9 +523,11 @@ class CognitiveTransformerLayer(nn.Module):
         hidden_states: torch.Tensor,
         attention_mask: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
+        position_embeddings: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
         past_key_value: Optional[Tuple[torch.Tensor]] = None,
         output_attentions: Optional[bool] = False,
         use_cache: Optional[bool] = False,
+        cache_position: Optional[torch.LongTensor] = None,
         tool_registry: Optional[Dict] = None,
         **kwargs,
     ):
@@ -531,14 +535,23 @@ class CognitiveTransformerLayer(nn.Module):
         
         # Layer norm and self-attention
         hidden_states = self.input_layernorm(hidden_states)
-        hidden_states, self_attn_weights, present_key_value = self.self_attn(
+        attn_output = self.self_attn(
             hidden_states=hidden_states,
+            position_embeddings=position_embeddings,
             attention_mask=attention_mask,
-            position_ids=position_ids,
             past_key_value=past_key_value,
+            cache_position=cache_position,
             output_attentions=output_attentions,
             use_cache=use_cache,
         )
+        
+        if output_attentions:
+            hidden_states, self_attn_weights = attn_output
+        else:
+            hidden_states = attn_output[0]
+            self_attn_weights = None
+        
+        present_key_value = None  # LlamaAttention doesn't return cache directly
         
         # Add residual
         hidden_states = residual + hidden_states
@@ -622,6 +635,9 @@ class CognitiveLanguageModel(PreTrainedModel, GenerationMixin):
         # Embeddings
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size)
         
+        # Rotary position embeddings
+        self.rotary_emb = LlamaRotaryEmbedding(config=config)
+        
         # Transformer layers
         self.layers = nn.ModuleList([
             CognitiveTransformerLayer(config, i) 
@@ -684,6 +700,7 @@ class CognitiveLanguageModel(PreTrainedModel, GenerationMixin):
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
+        cache_position: Optional[torch.LongTensor] = None,
         **kwargs,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
         
@@ -698,6 +715,20 @@ class CognitiveLanguageModel(PreTrainedModel, GenerationMixin):
             inputs_embeds = self.embed_tokens(input_ids)
 
         hidden_states = inputs_embeds
+        
+        # Generate cache position if not provided
+        if cache_position is None:
+            device = input_ids.device if input_ids is not None else inputs_embeds.device
+            cache_position = torch.arange(
+                0, hidden_states.shape[1], dtype=torch.long, device=device
+            )
+        
+        # Generate position IDs if not provided
+        if position_ids is None:
+            position_ids = cache_position.unsqueeze(0)
+        
+        # Generate position embeddings
+        position_embeddings = self.rotary_emb(hidden_states, position_ids)
 
         # Initialize caches
         if use_cache:
@@ -718,9 +749,11 @@ class CognitiveLanguageModel(PreTrainedModel, GenerationMixin):
                 hidden_states,
                 attention_mask=attention_mask,
                 position_ids=position_ids,
+                position_embeddings=position_embeddings,
                 past_key_value=past_key_values,
                 output_attentions=output_attentions,
                 use_cache=use_cache,
+                cache_position=cache_position,
                 tool_registry=self.tool_registry,
             )
 
