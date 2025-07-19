@@ -1,0 +1,179 @@
+# Cognitive SLM Configuration - 1.5B Parameters
+# Optimized for RTX 3090 Ti (24GB VRAM)
+
+model_config:
+  name: "cognitive-1.5b"
+  architecture: "cognitive_transformer"
+  
+  # Base transformer settings
+  vocab_size: 32000
+  hidden_size: 2048
+  intermediate_size: 5632
+  num_hidden_layers: 24
+  num_attention_heads: 16
+  num_key_value_heads: 8  # GQA for efficiency
+  max_position_embeddings: 4096
+  
+  # Cognitive-specific settings
+  cognitive_modules:
+    working_memory:
+      enabled: true
+      memory_size: 512
+      update_frequency: 4  # Update every 4 layers
+      memory_type: "gated_recurrent"
+    
+    reasoning_heads:
+      enabled: true
+      num_reasoning_heads: 4
+      reasoning_dim: 256
+      reasoning_layers: [12, 16, 20, 23]  # Which layers to add reasoning
+    
+    state_tracking:
+      enabled: true
+      num_states: 32
+      state_dim: 128
+      transition_model: "neural"
+    
+    planning_module:
+      enabled: true
+      planning_horizon: 8
+      action_space_size: 64
+      hierarchical_planning: true
+    
+    tool_calling:
+      enabled: true
+      max_tools: 128
+      tool_embedding_dim: 256
+      parameter_validation: true
+      execution_safety: true
+  
+  # Attention mechanisms
+  attention_config:
+    attention_type: "flash_attention_2"
+    sliding_window_size: 1024
+    use_sparse_attention: false  # Disabled for simplicity
+    sparse_pattern: "local_global"
+    rope_theta: 10000.0
+    rope_scaling: null
+  
+  # Activation and normalization
+  hidden_act: "silu"
+  rms_norm_eps: 1.0e-6
+  initializer_range: 0.02
+  
+  # Token settings
+  pad_token_id: 0
+  bos_token_id: 1
+  eos_token_id: 2
+  tie_word_embeddings: false
+
+# Hardware-specific optimizations for RTX 3090 Ti
+hardware_optimizations:
+  gpu_memory_fraction: 0.95
+  enable_tf32: true
+  cudnn_benchmark: true
+  use_flash_attention: true
+  
+  # Memory management
+  gradient_checkpointing: true
+  mixed_precision: "bf16"
+  attention_softmax_in_fp32: true
+  
+  # Compilation optimizations
+  torch_compile: true
+  compile_mode: "reduce-overhead"
+  
+  # Batch size configuration
+  batch_size_config:
+    base_batch_size: 4
+    gradient_accumulation_steps: 8  # Effective batch size: 32
+    max_grad_norm: 1.0
+    dynamic_batching: true
+    
+  # Memory optimization
+  memory_management:
+    offload_optimizer_state: false  # Keep on GPU for 24GB
+    offload_gradients: false
+    cpu_offload: false
+    pin_memory: true
+    prefetch_factor: 2
+
+# Training-specific settings
+training_config:
+  optimizer: "adamw"
+  learning_rate: 5.0e-5
+  weight_decay: 0.01
+  beta1: 0.9
+  beta2: 0.95
+  eps: 1.0e-8
+  
+  # Learning rate schedule
+  lr_scheduler: "cosine_with_restarts"
+  warmup_steps: 1000
+  max_steps: 50000
+  
+  # Loss configuration
+  loss_config:
+    primary_loss: "cross_entropy"
+    auxiliary_losses:
+      reasoning_loss_weight: 0.1
+      state_prediction_weight: 0.05
+      tool_calling_weight: 0.1
+    label_smoothing: 0.1
+
+# Evaluation settings
+evaluation_config:
+  eval_steps: 500
+  eval_strategy: "steps"
+  save_strategy: "steps"
+  save_steps: 1000
+  save_total_limit: 3
+  
+  # Cognitive evaluation metrics
+  cognitive_metrics:
+    - "chain_of_thought_accuracy"
+    - "planning_success_rate" 
+    - "tool_calling_accuracy"
+    - "reasoning_quality_score"
+    - "memory_utilization"
+
+# Tool calling configuration
+tool_calling_config:
+  # Built-in tool categories
+  tool_categories:
+    - "mathematics"
+    - "search"
+    - "data_processing"
+    - "file_operations"
+    - "api_calls"
+    - "code_execution"
+  
+  # Safety settings
+  safety_config:
+    max_execution_time: 30  # seconds
+    sandbox_mode: true
+    allowed_modules: ["math", "json", "re", "datetime"]
+    forbidden_operations: ["file_write", "network_external"]
+  
+  # Parameter validation
+  validation_config:
+    strict_typing: true
+    range_checking: true
+    format_validation: true
+
+# Logging and monitoring
+logging_config:
+  log_level: "INFO"
+  log_dir: "logs"
+  wandb_project: "cognitive-slm"
+  tensorboard_dir: "tensorboard_logs"
+  
+  # Metrics to track
+  tracked_metrics:
+    - "loss"
+    - "perplexity"
+    - "learning_rate"
+    - "gradient_norm"
+    - "memory_usage"
+    - "tokens_per_second"
+    - "cognitive_accuracy"
